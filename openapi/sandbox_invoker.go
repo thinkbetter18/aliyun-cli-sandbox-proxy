@@ -11,6 +11,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -34,8 +35,25 @@ func toSandboxInvoker(inv Invoker) Invoker {
 	case *RestfulInvoker:
 		return &SandboxRestfulInvoker{rf: x}
 	default:
-		return inv
+		return sandboxUnsupportedInvoker{typeName: fmt.Sprintf("%T", inv)}
 	}
+}
+
+// sandboxUnsupportedInvoker 避免未知 Invoker 在 SandboxProxy 下回落为本地直连签名。
+type sandboxUnsupportedInvoker struct {
+	typeName string
+}
+
+func (sandboxUnsupportedInvoker) getClient() *sdk.Client { return nil }
+
+func (sandboxUnsupportedInvoker) getRequest() *requests.CommonRequest { return &requests.CommonRequest{} }
+
+func (u sandboxUnsupportedInvoker) Prepare(*cli.Context) error {
+	return fmt.Errorf("sandbox proxy: unsupported invoker type %s (only RPC, force-RPC, and ROA are supported)", u.typeName)
+}
+
+func (u sandboxUnsupportedInvoker) Call() (*responses.CommonResponse, error) {
+	return nil, fmt.Errorf("sandbox proxy: unsupported invoker type %s", u.typeName)
 }
 
 // SandboxRpcInvoker RPC 经代签网关；Prepare 与 RpcInvoker 一致。
@@ -122,7 +140,7 @@ func callSandboxROA(b *BasicInvoker, method, roaPath string) (*responses.CommonR
 	if m == "" {
 		m = http.MethodGet
 	}
-	ct := b.request.GetContentType()
+	ct, _ := b.request.GetContentType()
 	if ct == "" && len(b.request.Content) > 0 {
 		if bytes.HasPrefix(b.request.Content, []byte("{")) {
 			ct = "application/json"
@@ -205,15 +223,19 @@ func doSandboxHTTP(profile *config.Profile, creq *requests.CommonRequest, produc
 	}
 	httpReq.Header.Set("User-Agent", "Aliyun-CLI/"+cli.GetVersion())
 
-	tr, err := newSandboxTransport(profile)
+	connectTO := 30 * time.Second
+	if profile.ConnectTimeout > 0 {
+		connectTO = time.Duration(profile.ConnectTimeout) * time.Second
+	}
+	tr, err := newSandboxTransport(profile, connectTO)
 	if err != nil {
 		return nil, err
 	}
-	timeout := 120 * time.Second
+	readTO := 120 * time.Second
 	if profile.ReadTimeout > 0 {
-		timeout = time.Duration(profile.ReadTimeout) * time.Second
+		readTO = time.Duration(profile.ReadTimeout) * time.Second
 	}
-	client := &http.Client{Transport: tr, Timeout: timeout}
+	client := &http.Client{Transport: tr, Timeout: readTO}
 	resp, err := client.Do(httpReq)
 	if err != nil {
 		return nil, err
@@ -222,7 +244,10 @@ func doSandboxHTTP(profile *config.Profile, creq *requests.CommonRequest, produc
 	return httpResponseToCommon(resp)
 }
 
-func newSandboxTransport(profile *config.Profile) (*http.Transport, error) {
+func newSandboxTransport(profile *config.Profile, connectTimeout time.Duration) (*http.Transport, error) {
+	if connectTimeout <= 0 {
+		connectTimeout = 30 * time.Second
+	}
 	tlsCfg := &tls.Config{MinVersion: tls.VersionTLS12}
 	if profile.SandboxProxyInsecure {
 		tlsCfg.InsecureSkipVerify = true
@@ -247,7 +272,13 @@ func newSandboxTransport(profile *config.Profile) (*http.Transport, error) {
 		}
 		tlsCfg.RootCAs = pool
 	}
-	return &http.Transport{TLSClientConfig: tlsCfg}, nil
+	dialer := &net.Dialer{Timeout: connectTimeout}
+	return &http.Transport{
+		DialContext:         dialer.DialContext,
+		TLSClientConfig:     tlsCfg,
+		TLSHandshakeTimeout: connectTimeout,
+		ForceAttemptHTTP2:   true,
+	}, nil
 }
 
 func httpResponseToCommon(resp *http.Response) (*responses.CommonResponse, error) {

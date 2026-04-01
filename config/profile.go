@@ -219,6 +219,9 @@ func (cp *Profile) validateSandboxProxy() error {
 	if cp.AutoPluginInstall {
 		return fmt.Errorf("auto_plugin_install must be false in SandboxProxy mode (use pre-installed plugins only)")
 	}
+	if cp.SandboxProxyInsecure && !AllowSandboxProxyInsecureTLS() {
+		return fmt.Errorf("sandbox_proxy_insecure requires %s=1 for explicit opt-in (do not set in production images)", EnvAllowInsecureTLS)
+	}
 	return nil
 }
 

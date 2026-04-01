@@ -21,7 +21,15 @@ const (
 	EnvSandboxProxyClientCert   = "ALIBABA_CLOUD_SANDBOX_PROXY_CLIENT_CERT_FILE"
 	EnvSandboxProxyClientKey    = "ALIBABA_CLOUD_SANDBOX_PROXY_CLIENT_KEY_FILE"
 	EnvSandboxProxyCAFile       = "ALIBABA_CLOUD_SANDBOX_PROXY_CA_FILE"
+	// EnvAllowInsecureTLS 显式允许 profile 中 sandbox_proxy_insecure；生产镜像不应设置（D17/P1 加固）。
+	EnvAllowInsecureTLS = "ALIYUN_CLI_SANDBOX_PROXY_ALLOW_INSECURE_TLS"
 )
+
+// AllowSandboxProxyInsecureTLS 为 true 时允许跳过 TLS 服务端校验（须与 profile.sandbox_proxy_insecure 同时开启）。
+func AllowSandboxProxyInsecureTLS() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv(EnvAllowInsecureTLS)))
+	return v == "1" || v == "true" || v == "yes"
+}
 
 // AllowEmptySandboxProxyToken 为 mock/单测：设置 ALIYUN_CLI_SANDBOX_PROXY_ALLOW_EMPTY_TOKEN=1 时允许不配置 exec 令牌。
 func AllowEmptySandboxProxyToken() bool {
