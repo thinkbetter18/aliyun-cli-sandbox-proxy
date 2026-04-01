@@ -128,12 +128,15 @@ func TestSsoLogin_GetUserList_Manual(t *testing.T) {
 	if err != nil {
 		t.Errorf("GetAccessToken error: %v", err)
 	} else {
-		t.Logf("GetAccessToken: %s", token)
+		t.Logf("GetAccessToken: %+v", token)
 	}
 	// start get user list
+	if token == nil {
+		t.Fatal("nil access token response")
+	}
 	param := &ListUserParameter{
 		BaseUrl:     "https://signin-cn-shanghai.alibabacloudsso.com",
-		AccessToken: token,
+		AccessToken: token.AccessToken,
 		HttpClient:  &http.Client{},
 	}
 	users, err := param.ListAllUsers()

@@ -31,6 +31,8 @@ import (
 )
 
 func TestNewConfigureCommand(t *testing.T) {
+	t.Setenv("NO_COLOR", "")
+	t.Setenv("LANG", "en_US.UTF-8")
 	originhook := hookLoadOrCreateConfiguration
 	originhookLoad := hookLoadConfigurationWithContext
 	originhookSave := hookSaveConfigurationWithContext
