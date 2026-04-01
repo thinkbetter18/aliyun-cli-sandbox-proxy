@@ -95,6 +95,10 @@ func (a *RestfulInvoker) Prepare(ctx *cli.Context) error {
 		a.request.Scheme = "https"
 	}
 
+	if a.api != nil && strings.TrimSpace(a.request.ApiName) == "" {
+		a.request.ApiName = strings.TrimSpace(a.api.Name)
+	}
+
 	return nil
 }
 

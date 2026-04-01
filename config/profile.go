@@ -57,6 +57,8 @@ const (
 	OIDC                = AuthenticateMode("OIDC")
 	CloudSSO            = AuthenticateMode("CloudSSO")
 	OAuth               = AuthenticateMode("OAuth")
+	// SandboxProxy 经 network-proxy OpenAPI 代签入口调用阿里云 API（见 SandboxProxy 设计 / dev-plan P1）
+	SandboxProxy = AuthenticateMode("SandboxProxy")
 )
 
 type Profile struct {
@@ -100,7 +102,11 @@ type Profile struct {
 	EndpointType               string           `json:"endpoint_type,omitempty"`                  // vpc or empty (default public)
 	AutoPluginInstall          bool             `json:"auto_plugin_install,omitempty"`            // automatically install plugins when not found
 	AutoPluginInstallEnablePre bool             `json:"auto_plugin_install_enable_pre,omitempty"` // install latest version (including pre-release) when true
-	parent                     *Configuration   //`json:"-"`
+	// SandboxProxy：北向 HTTPS 基址（无 path 后缀），Token 为 exec 会话 Bearer（§4.2.2）
+	SandboxProxyUrl      string         `json:"sandbox_proxy_url,omitempty"`
+	SandboxProxyToken    string         `json:"sandbox_proxy_token,omitempty"`
+	SandboxProxyInsecure bool           `json:"sandbox_proxy_insecure,omitempty"` // 仅测试：跳过 TLS 服务端校验
+	parent               *Configuration //`json:"-"`
 }
 
 func NewProfile(name string) Profile {
@@ -194,8 +200,24 @@ func (cp *Profile) Validate() error {
 		if cp.OAuthSiteType != "CN" && cp.OAuthSiteType != "INTL" {
 			return fmt.Errorf("invalid oauth_site_type, should be CN or INTL")
 		}
+	case SandboxProxy:
+		return cp.validateSandboxProxy()
 	default:
 		return fmt.Errorf("invalid mode: %s", cp.Mode)
+	}
+	return nil
+}
+
+func (cp *Profile) validateSandboxProxy() error {
+	if strings.TrimSpace(cp.SandboxProxyUrl) == "" {
+		return fmt.Errorf("sandbox_proxy_url is empty, configure or set %s", EnvSandboxProxyURL)
+	}
+	if !AllowEmptySandboxProxyToken() && strings.TrimSpace(cp.SandboxProxyToken) == "" {
+		return fmt.Errorf("sandbox_proxy_token (exec session) is empty, configure or set %s (mock: ALIYUN_CLI_SANDBOX_PROXY_ALLOW_EMPTY_TOKEN=1)", EnvSandboxProxyToken)
+	}
+	// D19 / SP-FR-12：沙箱内代签模式禁止依赖运行时拉取插件
+	if cp.AutoPluginInstall {
+		return fmt.Errorf("auto_plugin_install must be false in SandboxProxy mode (use pre-installed plugins only)")
 	}
 	return nil
 }
@@ -248,6 +270,18 @@ func (cp *Profile) OverwriteWithFlags(ctx *cli.Context) {
 
 	if cp.EndpointType == "" {
 		cp.EndpointType = util.GetFromEnv("ALIBABA_CLOUD_ENDPOINT_TYPE", "ALIBABACLOUD_ENDPOINT_TYPE", "ALICLOUD_ENDPOINT_TYPE", "ENDPOINT_TYPE")
+	}
+
+	cp.SandboxProxyUrl = SandboxProxyURLFlag(ctx.Flags()).GetStringOrDefault(cp.SandboxProxyUrl)
+	cp.SandboxProxyToken = SandboxProxyTokenFlag(ctx.Flags()).GetStringOrDefault(cp.SandboxProxyToken)
+	if f := ctx.Flags().Get(SandboxProxyInsecureFlagName); f != nil && f.IsAssigned() {
+		cp.SandboxProxyInsecure = true
+	}
+	if strings.TrimSpace(cp.SandboxProxyUrl) == "" {
+		cp.SandboxProxyUrl = strings.TrimSpace(os.Getenv(EnvSandboxProxyURL))
+	}
+	if strings.TrimSpace(cp.SandboxProxyToken) == "" {
+		cp.SandboxProxyToken = strings.TrimSpace(os.Getenv(EnvSandboxProxyToken))
 	}
 
 	if cp.CredentialsURI == "" {
@@ -579,6 +613,9 @@ func (cp *Profile) GetCredential(ctx *cli.Context, proxyHost *string) (cred cred
 			SetAccessKeyId(cp.AccessKeyId).
 			SetAccessKeySecret(cp.AccessKeySecret).
 			SetSecurityToken(cp.StsToken)
+	case SandboxProxy:
+		return nil, fmt.Errorf("GetCredential is not used in SandboxProxy mode")
+
 	case OAuth:
 		// check sts expiration
 		stsExpiration := cp.StsExpiration

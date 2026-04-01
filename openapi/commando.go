@@ -128,6 +128,14 @@ func DetectInConfigureMode(flags *cli.FlagSet) bool {
 	if oidcTokenFileExist {
 		return true
 	}
+	_, sandboxURL := flags.GetValue(config.SandboxProxyURLFlagName)
+	if sandboxURL {
+		return true
+	}
+	_, sandboxTok := flags.GetValue(config.SandboxProxyTokenFlagName)
+	if sandboxTok {
+		return true
+	}
 	return false
 }
 
@@ -564,7 +572,19 @@ func (c *Commando) invokeWithHelper(invoker Invoker) (resp string, err error, ok
 // create invoker for specific case
 // rpc: RpcInvoker, ForceRpcInvoker
 // restful: RestfulInvoker
+// SandboxProxy 模式下包装为 Sandbox*Invoker，北向发往 network-proxy OpenAPI 代签入口。
 func (c *Commando) createInvoker(ctx *cli.Context, productCode string, apiOrMethod string, path string) (Invoker, error) {
+	inv, err := c.createInvokerStandard(ctx, productCode, apiOrMethod, path)
+	if err != nil {
+		return nil, err
+	}
+	if c.profile.Mode == config.SandboxProxy {
+		return toSandboxInvoker(inv), nil
+	}
+	return inv, nil
+}
+
+func (c *Commando) createInvokerStandard(ctx *cli.Context, productCode string, apiOrMethod string, path string) (Invoker, error) {
 	force := ForceFlag(ctx.Flags()).IsAssigned()
 	basicInvoker := NewBasicInvoker(&c.profile)
 

@@ -52,6 +52,9 @@ const (
 	EndpointTypeFlagName               = "endpoint-type"
 	AutoPluginInstallFlagName          = "auto-plugin-install"
 	AutoPluginInstallEnablePreFlagName = "auto-plugin-install-enable-pre"
+	SandboxProxyURLFlagName            = "sandbox-proxy-url"
+	SandboxProxyTokenFlagName          = "sandbox-proxy-token"
+	SandboxProxyInsecureFlagName       = "sandbox-proxy-insecure"
 )
 
 func AddFlags(fs *cli.FlagSet) {
@@ -87,6 +90,9 @@ func AddFlags(fs *cli.FlagSet) {
 	fs.Add(NewEndpointTypeFlag())
 	fs.Add(NewAutoPluginInstallFlag())
 	fs.Add(NewAutoPluginInstallEnablePreFlag())
+	fs.Add(NewSandboxProxyURLFlag())
+	fs.Add(NewSandboxProxyTokenFlag())
+	fs.Add(NewSandboxProxyInsecureFlag())
 }
 
 func ConnectTimeoutFlag(fs *cli.FlagSet) *cli.Flag {
@@ -228,8 +234,8 @@ func NewModeFlag() *cli.Flag {
 		DefaultValue: "AK",
 		Persistent:   true,
 		Short: i18n.T(
-			"use `--mode {AK|StsToken|RamRoleArn|EcsRamRole|RsaKeyPair|RamRoleArnWithRoleName|CloudSSO|OAuth}` to assign authenticate mode",
-			"使用 `--mode {AK|StsToken|RamRoleArn|EcsRamRole|RsaKeyPair|RamRoleArnWithRoleName|CloudSSO|OAuth}` 指定认证方式"),
+			"use `--mode {AK|StsToken|RamRoleArn|EcsRamRole|RsaKeyPair|RamRoleArnWithRoleName|CloudSSO|OAuth|SandboxProxy}` to assign authenticate mode",
+			"使用 `--mode {AK|StsToken|RamRoleArn|EcsRamRole|RsaKeyPair|RamRoleArnWithRoleName|CloudSSO|OAuth|SandboxProxy}` 指定认证方式"),
 	}
 }
 
@@ -579,5 +585,49 @@ func NewAutoPluginInstallEnablePreFlag() *cli.Flag {
 		Short: i18n.T(
 			"use `--auto-plugin-install-enable-pre {true|false}` to install latest version (including pre-release)",
 			"使用 `--auto-plugin-install-enable-pre {true|false}` 安装最新版本（包括预览版本）"),
+	}
+}
+
+func SandboxProxyURLFlag(fs *cli.FlagSet) *cli.Flag {
+	return fs.Get(SandboxProxyURLFlagName)
+}
+
+func NewSandboxProxyURLFlag() *cli.Flag {
+	return &cli.Flag{
+		Category:     "config",
+		Name:         SandboxProxyURLFlagName,
+		AssignedMode: cli.AssignedOnce,
+		Persistent:   true,
+		Short: i18n.T(
+			"use `--sandbox-proxy-url` for SandboxProxy mode (network-proxy OpenAPI signing base URL)",
+			"SandboxProxy 模式：代签网关基址 URL"),
+	}
+}
+
+func SandboxProxyTokenFlag(fs *cli.FlagSet) *cli.Flag {
+	return fs.Get(SandboxProxyTokenFlagName)
+}
+
+func NewSandboxProxyTokenFlag() *cli.Flag {
+	return &cli.Flag{
+		Category:     "config",
+		Name:         SandboxProxyTokenFlagName,
+		AssignedMode: cli.AssignedOnce,
+		Persistent:   true,
+		Short: i18n.T(
+			"use `--sandbox-proxy-token` for exec session Bearer (or env ALIBABA_CLOUD_SANDBOX_PROXY_TOKEN)",
+			"SandboxProxy：exec 会话令牌，对应 Authorization Bearer"),
+	}
+}
+
+func NewSandboxProxyInsecureFlag() *cli.Flag {
+	return &cli.Flag{
+		Category:     "config",
+		Name:         SandboxProxyInsecureFlagName,
+		AssignedMode: cli.AssignedNone,
+		Persistent:   true,
+		Short: i18n.T(
+			"use `--sandbox-proxy-insecure` to skip TLS server cert verify [testing only]",
+			"SandboxProxy：跳过 TLS 服务端证书校验（仅测试）"),
 	}
 }

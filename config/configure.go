@@ -128,7 +128,7 @@ func NewConfigureCommand() *cli.Command {
 		Short: i18n.T(
 			"configure credential and settings",
 			"配置身份认证和其他信息"),
-		Usage: "configure --mode {AK|RamRoleArn|EcsRamRole|OIDC|External|CredentialsURI|ChainableRamRoleArn|CloudSSO|OAuth} --profile <profileName> [--config-path <configPath>]",
+		Usage: "configure --mode {AK|RamRoleArn|EcsRamRole|OIDC|External|CredentialsURI|ChainableRamRoleArn|CloudSSO|OAuth|SandboxProxy} --profile <profileName> [--config-path <configPath>]",
 		Run: func(ctx *cli.Context, args []string) error {
 			if len(args) > 0 {
 				return cli.NewInvalidCommandError(args[0], ctx)
@@ -276,6 +276,11 @@ func doConfigure(ctx *cli.Context, profileName string, mode string) error {
 				return err
 			}
 			cli.Printf(w, "OAuth configuration completed. The temporary Access Key Id and Access Key Secret have been set in the profile.\n")
+		case SandboxProxy:
+			cp.Mode = SandboxProxy
+			if err := configureSandboxProxy(w, &cp); err != nil {
+				return err
+			}
 		default:
 			return fmt.Errorf("unexcepted authenticate mode: %s", mode)
 		}

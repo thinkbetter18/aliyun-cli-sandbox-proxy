@@ -25,10 +25,10 @@ import (
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/responses"
 
-	"github.com/aliyun/aliyun-cli/v3/sysconfig/aimode"
 	"github.com/aliyun/aliyun-cli/v3/cli"
 	"github.com/aliyun/aliyun-cli/v3/config"
 	"github.com/aliyun/aliyun-cli/v3/meta"
+	"github.com/aliyun/aliyun-cli/v3/sysconfig/aimode"
 	"github.com/aliyun/aliyun-cli/v3/util"
 )
 
@@ -197,6 +197,11 @@ func (a *BasicInvoker) Init(ctx *cli.Context, product *meta.Product) error {
 	if a.request.RegionId == "" {
 		return cli.NewErrorWithTip(fmt.Errorf("missing region for product %s", product.Code),
 			"Use flag --region <regionId> to assign region, "+hint)
+	}
+
+	if a.profile.Mode == config.SandboxProxy {
+		a.client = nil
+		return nil
 	}
 
 	a.client, err = GetClient(a.profile, ctx)
